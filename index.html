@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dossiê NIW — Triagem</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink: #1B2A4A;
+    --ink-soft: #2E3F63;
+    --parchment: #F7F3EA;
+    --parchment-dim: #EFE9DA;
+    --brass: #B08D57;
+    --brass-dark: #8C6F42;
+    --slate: #5B6472;
+    --line: #D9D2C0;
+    --success: #3F6B4F;
+    --success-bg: #E9F1EC;
+    --warn: #C98A2C;
+    --warn-bg: #FBF0DF;
+    --danger: #B33A3A;
+    --danger-bg: #F9E9E7;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--parchment);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    background-image:
+      radial-gradient(circle at 100% 0%, rgba(176,141,87,0.06), transparent 40%),
+      radial-gradient(circle at 0% 100%, rgba(27,42,74,0.05), transparent 40%);
+    min-height: 100vh;
+  }
+  h1,h2,h3{ font-family: 'Source Serif 4', serif; font-weight: 600; margin: 0; color: var(--ink); }
+  .mono{ font-family: 'IBM Plex Mono', monospace; }
+  #root{ min-height: 100vh; }
+
+  .shell{ max-width: 640px; margin: 0 auto; padding: 20px 18px 60px; }
+
+  /* Header / masthead */
+  .masthead{ display:flex; align-items:center; justify-content:space-between; padding: 10px 2px 22px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+  .masthead .brand{ display:flex; align-items:center; gap:10px; }
+  .seal{ width:34px; height:34px; border-radius:50%; border:1.5px solid var(--brass); display:flex; align-items:center; justify-content:center; font-family:'Source Serif 4',serif; font-weight:700; color:var(--brass-dark); font-size:14px; flex:none; }
+  .brand-text .kicker{ font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--brass-dark); font-weight:600; }
+  .brand-text h1{ font-size:19px; line-height:1.1; }
+  .logout{ background:none; border:none; color:var(--slate); font-size:13px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+
+  /* Auth card */
+  .auth-wrap{ display:flex; align-items:center; justify-content:center; min-height: 90vh; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:2px; padding:28px 24px; box-shadow: 0 1px 2px rgba(27,42,74,0.04), 0 8px 24px rgba(27,42,74,0.06); }
+  .auth-card{ width:100%; max-width:380px; }
+  .auth-card .stamp-corner{ display:flex; justify-content:center; margin-bottom:14px; }
+  .auth-card h2{ font-size:22px; text-align:center; margin-bottom:6px; }
+  .auth-sub{ text-align:center; color:var(--slate); font-size:13.5px; margin-bottom:22px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:12px; font-weight:600; letter-spacing:0.02em; color:var(--ink-soft); margin-bottom:5px; }
+  .field input, .field select, .field textarea{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:2px;
+    font-family:'Inter',sans-serif; font-size:14.5px; background:#FCFAF5; color:var(--ink);
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{ outline:2px solid var(--brass); outline-offset:1px; border-color:var(--brass); }
+  .field textarea{ resize:vertical; min-height:76px; line-height:1.5; }
+  .hint{ font-size:11.5px; color:var(--slate); margin-top:4px; }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    background: var(--ink); color:#fff; border:none; padding:12px 18px; border-radius:2px;
+    font-family:'Inter',sans-serif; font-weight:600; font-size:14px; cursor:pointer; width:100%;
+    transition: background .15s ease;
+  }
+  .btn:hover{ background: var(--ink-soft); }
+  .btn:disabled{ opacity:0.5; cursor:not-allowed; }
+  .btn-ghost{ background:none; color:var(--ink); border:1px solid var(--line); }
+  .btn-ghost:hover{ background: var(--parchment-dim); }
+  .btn-row{ display:flex; gap:10px; }
+  .switch-mode{ text-align:center; margin-top:16px; font-size:13px; color:var(--slate); }
+  .switch-mode button{ background:none; border:none; color:var(--brass-dark); font-weight:600; cursor:pointer; text-decoration:underline; text-underline-offset:2px; font-size:13px; padding:0; }
+  .error-msg{ background: var(--danger-bg); color:var(--danger); padding:10px 12px; border-radius:2px; font-size:13px; margin-bottom:14px; border:1px solid rgba(179,58,58,0.25); }
+
+  /* Progress / folder tabs */
+  .folder-tabs{ display:flex; gap:6px; margin-bottom:22px; }
+  .tab{
+    flex:1; text-align:center; padding:9px 4px; border-radius:2px 2px 0 0;
+    font-size:11px; font-weight:600; letter-spacing:0.03em; text-transform:uppercase;
+    color: var(--slate); background: var(--parchment-dim); border-bottom:3px solid transparent;
+    transition: all .15s ease;
+  }
+  .tab.active{ color: var(--ink); background:#fff; border-bottom-color: var(--brass); }
+  .tab.done{ color: var(--success); }
+
+  .step-card{ background:#fff; border:1px solid var(--line); padding:24px 20px; border-radius:2px; }
+  .step-eyebrow{ font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--brass-dark); font-weight:600; margin-bottom:6px; }
+  .step-title{ font-size:21px; margin-bottom:6px; }
+  .step-desc{ color:var(--slate); font-size:13.5px; line-height:1.5; margin-bottom:20px; }
+
+  .radio-group{ display:flex; flex-direction:column; gap:8px; }
+  .radio-option{
+    display:flex; align-items:flex-start; gap:10px; padding:11px 12px; border:1px solid var(--line);
+    border-radius:2px; cursor:pointer; transition: border-color .15s, background .15s;
+  }
+  .radio-option:hover{ border-color: var(--brass); }
+  .radio-option.selected{ border-color: var(--brass); background: rgba(176,141,87,0.06); }
+  .radio-option input{ margin-top:2px; accent-color: var(--brass-dark); }
+  .radio-option .opt-text{ font-size:14px; line-height:1.4; }
+  .radio-option .opt-text small{ display:block; color:var(--slate); font-size:12px; margin-top:2px; }
+
+  .checklist{ display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+  .check-item{ display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:2px; cursor:pointer; }
+  .check-item.checked{ border-color: var(--brass); background: rgba(176,141,87,0.06); }
+  .check-item input{ margin-top:2px; accent-color: var(--brass-dark); }
+  .check-item span{ font-size:13.5px; line-height:1.4; }
+  .crit-counter{ margin-top:12px; padding:9px 12px; border-radius:2px; font-size:13px; font-weight:600; }
+  .crit-counter.ok{ background: var(--success-bg); color: var(--success); }
+  .crit-counter.low{ background: var(--warn-bg); color: var(--warn); }
+
+  .strength-picker{ display:flex; gap:6px; margin-top:6px; }
+  .strength-btn{ flex:1; padding:8px 4px; text-align:center; border:1px solid var(--line); border-radius:2px; font-size:12.5px; font-weight:600; cursor:pointer; background:#fff; color:var(--slate); }
+  .strength-btn.fraco.active{ background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+  .strength-btn.moderado.active{ background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+  .strength-btn.forte.active{ background: var(--success-bg); border-color: var(--success); color: var(--success); }
+
+  .prong-block{ margin-bottom:22px; padding-bottom:20px; border-bottom:1px solid var(--line); }
+  .prong-block:last-child{ border-bottom:none; margin-bottom:0; padding-bottom:0; }
+  .prong-num{ display:inline-flex; align-items:center; gap:8px; font-family:'Source Serif 4',serif; font-weight:700; font-size:15px; color:var(--brass-dark); margin-bottom:10px; }
+  .prong-num .circ{ width:22px; height:22px; border-radius:50%; border:1.5px solid var(--brass); display:flex; align-items:center; justify-content:center; font-size:12px; }
+
+  .step-nav{ display:flex; justify-content:space-between; gap:10px; margin-top:24px; }
+  .step-nav .btn{ width:auto; padding:12px 22px; }
+
+  /* Alert boxes */
+  .alert-box{ padding:14px 16px; border-radius:2px; font-size:13.5px; line-height:1.55; margin-top:16px; border:1px solid; }
+  .alert-box.red{ background: var(--danger-bg); border-color: rgba(179,58,58,0.3); color:#7a2626; }
+  .alert-box.amber{ background: var(--warn-bg); border-color: rgba(201,138,44,0.3); color:#7a541b; }
+  .alert-box.green{ background: var(--success-bg); border-color: rgba(63,107,79,0.3); color:#26472f; }
+  .alert-box .alert-title{ font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:6px; }
+  .countdown{ font-family:'IBM Plex Mono',monospace; font-weight:600; }
+
+  /* Results screen */
+  .result-hero{ text-align:center; padding: 8px 0 20px; }
+  .result-hero .seal-lg{ width:64px; height:64px; border-radius:50%; border:2px solid var(--brass); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-family:'Source Serif 4',serif; font-weight:700; font-size:24px; color:var(--brass-dark); }
+  .result-hero h2{ font-size:24px; margin-bottom:6px; }
+  .result-hero p{ color:var(--slate); font-size:14px; }
+  .summary-grid{ display:flex; flex-direction:column; gap:10px; margin: 20px 0; }
+  .summary-row{ display:flex; justify-content:space-between; align-items:center; padding:12px 14px; background:#fff; border:1px solid var(--line); border-radius:2px; }
+  .summary-row .label{ font-size:13px; color:var(--slate); }
+  .summary-row .value{ font-weight:700; font-size:13.5px; }
+  .tag{ display:inline-block; padding:3px 9px; border-radius:20px; font-size:11.5px; font-weight:700; letter-spacing:0.02em; }
+  .tag.forte{ background: var(--success-bg); color: var(--success); }
+  .tag.moderado{ background: var(--warn-bg); color: var(--warn); }
+  .tag.fraco{ background: var(--danger-bg); color: var(--danger); }
+
+  .loading-line{ text-align:center; padding:60px 0; color: var(--slate); font-size:14px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+
+// ---------------------------------------------------------------
+// Supabase client
+// ---------------------------------------------------------------
+const SUPABASE_URL = "https://udfouqnxnscqrjutuapz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Cu86zxe8XUQJF64WFKQ4sQ_dRZ1S219";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ---------------------------------------------------------------
+// Constantes de domínio
+// ---------------------------------------------------------------
+const OCCUPATION_FIELDS = [
+  ["tech", "Tecnologia / TI"],
+  ["saude", "Saúde"],
+  ["pesquisa", "Pesquisa / Academia"],
+  ["engenharia", "Engenharia"],
+  ["negocios", "Negócios / Empreendedorismo"],
+  ["outro", "Outro"],
+];
+
+const VISA_STATUSES = [
+  ["B1B2", "B1/B2 — Turismo/Negócios"],
+  ["F1", "F-1 — Estudante"],
+  ["J1", "J-1 — Intercâmbio"],
+  ["TN", "TN"],
+  ["O1", "O-1"],
+  ["H1B", "H-1B"],
+  ["L1", "L-1"],
+  ["K1", "K-1 — Noivo(a)"],
+  ["outro", "Outro"],
+];
+
+const EXCEPTIONAL_CRITERIA = [
+  ["crit_academic_record", "Diploma ou certificado relacionado à área"],
+  ["crit_10yrs_experience", "10+ anos de experiência full-time comprovável"],
+  ["crit_professional_license", "Licença ou certificação profissional"],
+  ["crit_salary_evidence", "Histórico de salário/remuneração compatível com exceptional ability"],
+  ["crit_professional_membership", "Membro de associação(ões) profissional(is)"],
+  ["crit_peer_recognition", "Reconhecimento por pares, governo ou organizações do setor"],
+  ["crit_comparable_evidence", "Outra evidência comparável"],
+];
+
+// ---------------------------------------------------------------
+// App raiz
+// ---------------------------------------------------------------
+function App(){
+  const [session, setSession] = useState(undefined); // undefined = carregando
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, sess) => setSession(sess));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (session === undefined) {
+    return <div className="loading-line">Carregando…</div>;
+  }
+  if (!session) {
+    return <AuthScreen />;
+  }
+  return <Dashboard session={session} />;
+}
+
+// ---------------------------------------------------------------
+// Tela de autenticação
+// ---------------------------------------------------------------
+function AuthScreen(){
+  const [mode, setMode] = useState("login"); // login | signup
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [signupDone, setSignupDone] = useState(false);
+
+  async function handleSubmit(e){
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      if (mode === "login") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        setSignupDone(true);
+      }
+    } catch (err) {
+      setError(err.message || "Algo deu errado. Tenta de novo.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="auth-wrap">
+      <div className="card auth-card">
+        <div className="stamp-corner"><div className="seal">EB2</div></div>
+        <h2>Dossiê NIW</h2>
+        <p className="auth-sub">Triagem e preparação da sua petição EB-2 NIW</p>
+
+        {signupDone ? (
+          <div className="alert-box green">
+            <div className="alert-title">Conta criada</div>
+            Verifica seu e-mail para confirmar o cadastro e depois volta pra entrar.
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            {error && <div className="error-msg">{error}</div>}
+            <div className="field">
+              <label>E-mail</label>
+              <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@email.com" />
+            </div>
+            <div className="field">
+              <label>Senha</label>
+              <input type="password" required minLength={6} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+            </div>
+            <button className="btn" type="submit" disabled={loading}>
+              {loading ? "Aguarda…" : mode === "login" ? "Entrar" : "Criar conta"}
+            </button>
+          </form>
+        )}
+
+        <div className="switch-mode">
+          {mode === "login" ? (
+            <>Ainda não tem conta? <button onClick={()=>{setMode("signup"); setError(""); setSignupDone(false);}}>Criar conta</button></>
+          ) : (
+            <>Já tem conta? <button onClick={()=>{setMode("login"); setError(""); setSignupDone(false);}}>Entrar</button></>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+// Dashboard — carrega/cria o caso ativo do usuário
+// ---------------------------------------------------------------
+function Dashboard({ session }){
+  const [loadingCase, setLoadingCase] = useState(true);
+  const [activeCase, setActiveCase] = useState(null);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => { loadOrCreateCase(); }, []);
+
+  async function loadOrCreateCase(){
+    setLoadingCase(true);
+    // garante que existe profile
+    await supabase.from("profiles").upsert({ id: session.user.id }, { onConflict: "id" });
+
+    // busca caso mais recente em triagem
+    const { data: cases } = await supabase
+      .from("cases")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (cases && cases.length > 0) {
+      setActiveCase(cases[0]);
+    } else {
+      const { data: newCase, error } = await supabase
+        .from("cases")
+        .insert({ user_id: session.user.id })
+        .select()
+        .single();
+      if (!error) setActiveCase(newCase);
+    }
+    setLoadingCase(false);
+  }
+
+  async function handleLogout(){
+    await supabase.auth.signOut();
+  }
+
+  if (loadingCase) return <div className="loading-line">Carregando seu caso…</div>;
+
+  return (
+    <div className="shell">
+      <div className="masthead">
+        <div className="brand">
+          <div className="seal">EB2</div>
+          <div className="brand-text">
+            <div className="kicker">Dossiê NIW</div>
+            <h1>Triagem de Elegibilidade</h1>
+          </div>
+        </div>
+        <button className="logout" onClick={handleLogout}>Sair</button>
+      </div>
+
+      {result ? (
+        <ResultsScreen result={result} onRestart={() => setResult(null)} />
+      ) : (
+        <TriageWizard session={session} caseId={activeCase.id} onFinish={setResult} />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+// Wizard de triagem — 4 blocos
+// ---------------------------------------------------------------
+const STEPS = ["Dados", "Camada 1", "Dhanasar", "Status"];
+
+function TriageWizard({ session, caseId, onFinish }){
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const [basics, setBasics] = useState({
+    full_name: "", nationality: "", country_of_residence: "",
+    occupation_field: "tech", has_dependents: false, occupation: "",
+  });
+
+  const [layer1, setLayer1] = useState({
+    pathway: "advanced_degree",
+    has_masters_or_phd: false, has_bachelors: false, years_experience_post_degree: 0,
+    crit_academic_record: false, crit_10yrs_experience: false, crit_professional_license: false,
+    crit_salary_evidence: false, crit_professional_membership: false, crit_peer_recognition: false,
+    crit_comparable_evidence: false,
+  });
+
+  const [dhanasar, setDhanasar] = useState({
+    prong1_endeavor_description: "", prong1_problem_solved: "", prong1_national_importance_evidence: "", prong1_strength: "moderado",
+    prong2_qualifications: "", prong2_track_record: "", prong2_potential_partners: "", prong2_strength: "moderado",
+    prong3_impracticality_reason: "", prong3_national_benefit: "", prong3_strength: "moderado",
+  });
+
+  const [imm, setImm] = useState({
+    inside_us: true, current_status: "H1B", last_entry_date: "",
+  });
+
+  const critCount = useMemo(() => {
+    return EXCEPTIONAL_CRITERIA.reduce((acc, [key]) => acc + (layer1[key] ? 1 : 0), 0);
+  }, [layer1]);
+
+  const layer1Eligible = layer1.pathway === "advanced_degree"
+    ? (layer1.has_masters_or_phd || (layer1.has_bachelors && Number(layer1.years_experience_post_degree) >= 5))
+    : critCount >= 3;
+
+  function next(){ setStep(s => Math.min(s+1, STEPS.length-1)); }
+  function back(){ setStep(s => Math.max(s-1, 0)); }
+
+  async function finishAndSave(){
+    setSaving(true);
+    try {
+      await supabase.from("profiles").update({
+        full_name: basics.full_name, nationality: basics.nationality,
+        country_of_residence: basics.country_of_residence, occupation_field: basics.occupation_field,
+        has_dependents: basics.has_dependents,
+      }).eq("id", session.user.id);
+
+      await supabase.from("cases").update({
+        occupation: basics.occupation, case_status: "triagem",
+      }).eq("id", caseId);
+
+      await supabase.from("eligibility_layer1").upsert({
+        case_id: caseId, ...layer1, eligible: layer1Eligible,
+      }, { onConflict: "case_id" });
+
+      const readiness = computeReadiness(dhanasar);
+      await supabase.from("dhanasar_assessment").upsert({
+        case_id: caseId, ...dhanasar, overall_readiness: readiness,
+      }, { onConflict: "case_id" });
+
+      await supabase.from("immigration_status").upsert({
+        case_id: caseId,
+        inside_us: imm.inside_us,
+        current_status: imm.inside_us ? imm.current_status : null,
+        last_entry_date: imm.inside_us && imm.last_entry_date ? imm.last_entry_date : null,
+      }, { onConflict: "case_id" });
+
+      let alertData = null;
+      if (imm.inside_us) {
+        const { data } = await supabase
+          .from("v_immigration_status_alert")
+          .select("*")
+          .eq("case_id", caseId)
+          .single();
+        alertData = data;
+      }
+
+      onFinish({
+        layer1Eligible, critCount, pathway: layer1.pathway,
+        readiness, dhanasar, alertData, basics,
+      });
+    } catch (err) {
+      alert("Erro ao salvar: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="folder-tabs">
+        {STEPS.map((label, i) => (
+          <div key={label} className={"tab" + (i===step ? " active" : "") + (i<step ? " done" : "")}>
+            {i<step ? "✓ " : ""}{label}
+          </div>
+        ))}
+      </div>
+
+      {step === 0 && <StepBasics data={basics} setData={setBasics} onNext={next} />}
+      {step === 1 && <StepLayer1 data={layer1} setData={setLayer1} critCount={critCount} eligible={layer1Eligible} onNext={next} onBack={back} />}
+      {step === 2 && <StepDhanasar data={dhanasar} setData={setDhanasar} onNext={next} onBack={back} />}
+      {step === 3 && <StepImmigration data={imm} setData={setImm} onFinish={finishAndSave} onBack={back} saving={saving} />}
+    </div>
+  );
+}
+
+function computeReadiness(d){
+  const order = { fraco: 0, moderado: 1, forte: 2 };
+  const min = Math.min(order[d.prong1_strength], order[d.prong2_strength], order[d.prong3_strength]);
+  if (min === 2) return "pronto";
+  if (min === 1) return "precisa_reforco";
+  return "nao_pronto";
+}
+
+// ---------------------------------------------------------------
+// Bloco 1 — Dados básicos
+// ---------------------------------------------------------------
+function StepBasics({ data, setData, onNext }){
+  const valid = data.full_name && data.nationality && data.occupation;
+  return (
+    <div className="step-card">
+      <div className="step-eyebrow">Bloco 1 de 4</div>
+      <div className="step-title">Dados básicos</div>
+      <p className="step-desc">Informações do cadastro do seu caso.</p>
+
+      <div className="field">
+        <label>Nome completo</label>
+        <input value={data.full_name} onChange={e=>setData({...data, full_name:e.target.value})} placeholder="Seu nome completo" />
+      </div>
+      <div className="field">
+        <label>Nacionalidade</label>
+        <input value={data.nationality} onChange={e=>setData({...data, nationality:e.target.value})} placeholder="Ex: Brasileira" />
+      </div>
+      <div className="field">
+        <label>País de residência atual</label>
+        <input value={data.country_of_residence} onChange={e=>setData({...data, country_of_residence:e.target.value})} placeholder="Ex: Estados Unidos" />
+      </div>
+      <div className="field">
+        <label>Área / profissão</label>
+        <input value={data.occupation} onChange={e=>setData({...data, occupation:e.target.value})} placeholder="Ex: Engenheiro de Software" />
+      </div>
+      <div className="field">
+        <label>Categoria da área</label>
+        <select value={data.occupation_field} onChange={e=>setData({...data, occupation_field:e.target.value})}>
+          {OCCUPATION_FIELDS.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </div>
+      <div className="check-item" onClick={()=>setData({...data, has_dependents: !data.has_dependents})} style={{marginBottom:20}}>
+        <input type="checkbox" readOnly checked={data.has_dependents} />
+        <span>Tenho cônjuge e/ou filhos dependentes</span>
+      </div>
+
+      <div className="step-nav" style={{justifyContent:"flex-end"}}>
+        <button className="btn" style={{width:"auto"}} disabled={!valid} onClick={onNext}>Continuar</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+// Bloco 2 — Camada 1 (barra do EB-2)
+// ---------------------------------------------------------------
+function StepLayer1({ data, setData, critCount, eligible, onNext, onBack }){
+  return (
+    <div className="step-card">
+      <div className="step-eyebrow">Bloco 2 de 4</div>
+      <div className="step-title">Barra do EB-2</div>
+      <p className="step-desc">Qual caminho melhor descreve sua qualificação?</p>
+
+      <div className="radio-group" style={{marginBottom:20}}>
+        <label className={"radio-option" + (data.pathway==="advanced_degree" ? " selected":"")}>
+          <input type="radio" name="pathway" checked={data.pathway==="advanced_degree"} onChange={()=>setData({...data, pathway:"advanced_degree"})} />
+          <div className="opt-text">Advanced Degree<small>Mestrado, doutorado, ou bacharelado + 5 anos de experiência progressiva</small></div>
+        </label>
+        <label className={"radio-option" + (data.pathway==="exceptional_ability" ? " selected":"")}>
+          <input type="radio" name="pathway" checked={data.pathway==="exceptional_ability"} onChange={()=>setData({...data, pathway:"exceptional_ability"})} />
+          <div className="opt-text">Exceptional Ability<small>Não tenho grau avançado, mas tenho histórico forte na área</small></div>
+        </label>
+      </div>
+
+      {data.pathway === "advanced_degree" ? (
+        <>
+          <div className="check-item" onClick={()=>setData({...data, has_masters_or_phd: !data.has_masters_or_phd})}>
+            <input type="checkbox" readOnly checked={data.has_masters_or_phd} />
+            <span>Tenho mestrado, doutorado ou equivalente estrangeiro</span>
+          </div>
+          {!data.has_masters_or_phd && (
+            <>
+              <div className="check-item" style={{marginTop:8}} onClick={()=>setData({...data, has_bachelors: !data.has_bachelors})}>
+                <input type="checkbox" readOnly checked={data.has_bachelors} />
+                <span>Tenho bacharelado</span>
+              </div>
+              {data.has_bachelors && (
+                <div className="field" style={{marginTop:10}}>
+                  <label>Anos de experiência progressiva pós-formatura</label>
+                  <input type="number" min="0" value={data.years_experience_post_degree} onChange={e=>setData({...data, years_experience_post_degree:e.target.value})} />
+                  <div className="hint">Precisa de 5+ anos para qualificar por esse caminho</div>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="checklist">
+            {EXCEPTIONAL_CRITERIA.map(([key, label]) => (
+              <div key={key} className={"check-item" + (data[key] ? " checked":"")} onClick={()=>setData({...data, [key]: !data[key]})}>
+                <input type="checkbox" readOnly checked={data[key]} />
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
+          <div className={"crit-counter " + (critCount>=3 ? "ok":"low")}>
+            {critCount} de 7 critérios marcados {critCount>=3 ? "— atinge o mínimo de 3" : "— precisa de pelo menos 3"}
+          </div>
+        </>
+      )}
+
+      <div className={"alert-box " + (eligible ? "green" : "amber")} style={{marginTop:18}}>
+        <div className="alert-title">{eligible ? "Barra do EB-2: atendida" : "Barra do EB-2: ainda não atendida"}</div>
+        {eligible
+          ? "Você atende os requisitos básicos para prosseguir com o NIW."
+          : "Com base no que foi marcado, esse caminho ainda não qualifica. Você pode revisar as respostas ou seguir mesmo assim para ver o restante da triagem."}
+      </div>
+
+      <div className="step-nav">
+        <button className="btn btn-ghost" onClick={onBack}>Voltar</button>
+        <button className="btn" style={{width:"auto"}} onClick={onNext}>Continuar</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+// Bloco 3 — Autoavaliação Dhanasar
+// ---------------------------------------------------------------
+function StrengthPicker({ value, onChange }){
+  return (
+    <div className="strength-picker">
+      {["fraco","moderado","forte"].map(v => (
+        <div key={v} className={"strength-btn " + v + (value===v ? " active":"")} onClick={()=>onChange(v)}>
+          {v.charAt(0).toUpperCase()+v.slice(1)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StepDhanasar({ data, setData, onNext, onBack }){
+  const set = (k,v) => setData({...data, [k]:v});
+  return (
+    <div className="step-card">
+      <div className="step-eyebrow">Bloco 3 de 4</div>
+      <div className="step-title">Autoavaliação Dhanasar</div>
+      <p className="step-desc">Os 3 prongs do NIW. Responda com o que já tem hoje — dá pra reforçar depois.</p>
+
+      <div className="prong-block">
+        <div className="prong-num"><span className="circ">1</span> Mérito e importância nacional</div>
+        <div className="field"><label>Descreva o projeto que você quer desenvolver nos EUA</label>
+          <textarea value={data.prong1_endeavor_description} onChange={e=>set("prong1_endeavor_description", e.target.value)} /></div>
+        <div className="field"><label>Que problema ele resolve e para quem?</label>
+          <textarea value={data.prong1_problem_solved} onChange={e=>set("prong1_problem_solved", e.target.value)} /></div>
+        <div className="field"><label>Dados ou tendências que mostram a relevância nos EUA</label>
+          <textarea value={data.prong1_national_importance_evidence} onChange={e=>set("prong1_national_importance_evidence", e.target.value)} /></div>
+        <label className="hint" style={{display:"block", marginBottom:4}}>Força da evidência</label>
+        <StrengthPicker value={data.prong1_strength} onChange={v=>set("prong1_strength", v)} />
+      </div>
+
+      <div className="prong-block">
+        <div className="prong-num"><span className="circ">2</span> Bem posicionado</div>
+        <div className="field"><label>Formação/experiência que te qualifica para isso</label>
+          <textarea value={data.prong2_qualifications} onChange={e=>set("prong2_qualifications", e.target.value)} /></div>
+        <div className="field"><label>Resultados prévios (produtos, publicações, clientes)</label>
+          <textarea value={data.prong2_track_record} onChange={e=>set("prong2_track_record", e.target.value)} /></div>
+        <div className="field"><label>Parceiros, investidores ou cartas de apoio em potencial</label>
+          <textarea value={data.prong2_potential_partners} onChange={e=>set("prong2_potential_partners", e.target.value)} /></div>
+        <label className="hint" style={{display:"block", marginBottom:4}}>Força da evidência</label>
+        <StrengthPicker value={data.prong2_strength} onChange={v=>set("prong2_strength", v)} />
+      </div>
+
+      <div className="prong-block">
+        <div className="prong-num"><span className="circ">3</span> Balanço favorável</div>
+        <div className="field"><label>Por que seria impraticável ter um sponsor/PERM no seu caso?</label>
+          <textarea value={data.prong3_impracticality_reason} onChange={e=>set("prong3_impracticality_reason", e.target.value)} /></div>
+        <div className="field"><label>Que benefício direto os EUA teriam com seu trabalho?</label>
+          <textarea value={data.prong3_national_benefit} onChange={e=>set("prong3_national_benefit", e.target.value)} /></div>
+        <label className="hint" style={{display:"block", marginBottom:4}}>Força da evidência</label>
+        <StrengthPicker value={data.prong3_strength} onChange={v=>set("prong3_strength", v)} />
+      </div>
+
+      <div className="step-nav">
+        <button className="btn btn-ghost" onClick={onBack}>Voltar</button>
+        <button className="btn" style={{width:"auto"}} onClick={onNext}>Continuar</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+// Bloco 4 — Status migratório / regra dos 90 dias
+// ---------------------------------------------------------------
+function StepImmigration({ data, setData, onFinish, onBack, saving }){
+  const dualIntent = ["H1B","L1","K1"].includes(data.current_status);
+
+  let daysSinceEntry = null;
+  if (data.inside_us && data.last_entry_date) {
+    const entry = new Date(data.last_entry_date + "T00:00:00");
+    const today = new Date();
+    daysSinceEntry = Math.floor((today - entry) / (1000*60*60*24));
+  }
+
+  return (
+    <div className="step-card">
+      <div className="step-eyebrow">Bloco 4 de 4</div>
+      <div className="step-title">Status migratório</div>
+      <p className="step-desc">Isso determina se a regra dos 90 dias se aplica ao seu I-485.</p>
+
+      <div className="radio-group" style={{marginBottom:18}}>
+        <label className={"radio-option" + (data.inside_us ? " selected":"")}>
+          <input type="radio" checked={data.inside_us} onChange={()=>setData({...data, inside_us:true})} />
+          <div className="opt-text">Estou dentro dos EUA</div>
+        </label>
+        <label className={"radio-option" + (!data.inside_us ? " selected":"")}>
+          <input type="radio" checked={!data.inside_us} onChange={()=>setData({...data, inside_us:false})} />
+          <div className="opt-text">Estou fora dos EUA</div>
+        </label>
+      </div>
+
+      {data.inside_us && (
+        <>
+          <div className="field">
+            <label>Status migratório atual</label>
+            <select value={data.current_status} onChange={e=>setData({...data, current_status:e.target.value})}>
+              {VISA_STATUSES.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Data da última entrada nos EUA</label>
+            <input type="date" value={data.last_entry_date} onChange={e=>setData({...data, last_entry_date:e.target.value})} />
+          </div>
+
+          {daysSinceEntry !== null && (
+            dualIntent ? (
+              <div className="alert-box green">
+                <div className="alert-title">Visto dual-intent</div>
+                Sem alerta de 90 dias. Ainda assim, desde maio/2026 o USCIS trata o I-485 como decisão discricionária — mantenha documentação de status em dia.
+              </div>
+            ) : daysSinceEntry < 90 ? (
+              <div className="alert-box red">
+                <div className="alert-title">⚠ Regra dos 90 dias</div>
+                Você está a <span className="countdown">{daysSinceEntry}</span> dias da sua entrada. Faltam <span className="countdown">{90 - daysSinceEntry}</span> dias para atingir a marca de 90 dias.
+                Aplicar pro I-485 agora pode gerar presunção de má representação da intenção original do visto.
+              </div>
+            ) : (
+              <div className="alert-box amber">
+                <div className="alert-title">Marca de 90 dias atingida</div>
+                Você já passou de <span className="countdown">{daysSinceEntry}</span> dias desde a entrada, o que reduz o risco de presunção automática. Desde maio/2026 o I-485 é tratado como discricionário — documente bem status, impostos e vínculos.
+              </div>
+            )
+          )}
+        </>
+      )}
+
+      <div className="step-nav">
+        <button className="btn btn-ghost" onClick={onBack}>Voltar</button>
+        <button className="btn" style={{width:"auto"}} disabled={saving} onClick={onFinish}>
+          {saving ? "Salvando…" : "Concluir triagem"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+// Tela de resultado
+// ---------------------------------------------------------------
+function ResultsScreen({ result, onRestart }){
+  const { layer1Eligible, critCount, pathway, readiness, dhanasar, alertData } = result;
+
+  const readinessLabel = {
+    pronto: ["Caso com potencial forte", "green"],
+    precisa_reforco: ["Caso viável, mas precisa reforçar evidências", "amber"],
+    nao_pronto: ["Caso ainda frágil nos prongs", "red"],
+  }[readiness];
+
+  return (
+    <div>
+      <div className="result-hero">
+        <div className="seal-lg">✓</div>
+        <h2>Triagem concluída</h2>
+        <p>Aqui está o retrato inicial do seu caso NIW.</p>
+      </div>
+
+      <div className="summary-grid">
+        <div className="summary-row">
+          <span className="label">Barra do EB-2 ({pathway === "advanced_degree" ? "Advanced Degree" : "Exceptional Ability"})</span>
+          <span className="value">{layer1Eligible ? "✓ Atendida" : "✗ Não atendida"}</span>
+        </div>
+        {pathway === "exceptional_ability" && (
+          <div className="summary-row">
+            <span className="label">Critérios marcados</span>
+            <span className="value">{critCount} / 7</span>
+          </div>
+        )}
+        <div className="summary-row">
+          <span className="label">Prong 1 — Mérito e importância nacional</span>
+          <span className={"tag " + dhanasar.prong1_strength}>{dhanasar.prong1_strength}</span>
+        </div>
+        <div className="summary-row">
+          <span className="label">Prong 2 — Bem posicionado</span>
+          <span className={"tag " + dhanasar.prong2_strength}>{dhanasar.prong2_strength}</span>
+        </div>
+        <div className="summary-row">
+          <span className="label">Prong 3 — Balanço favorável</span>
+          <span className={"tag " + dhanasar.prong3_strength}>{dhanasar.prong3_strength}</span>
+        </div>
+      </div>
+
+      <div className={"alert-box " + readinessLabel[1]}>
+        <div className="alert-title">{readinessLabel[0]}</div>
+        {readiness === "pronto" && "Todos os prongs têm pelo menos uma linha de evidência forte. Próximo passo é aprofundar a coleta de documentos."}
+        {readiness === "precisa_reforco" && "Nenhum prong está fraco, mas nenhum está forte ainda. Vale reforçar evidência objetiva antes de avançar pro filing."}
+        {readiness === "nao_pronto" && "Pelo menos um prong ainda está fraco. Recomendado reforçar esse ponto antes de seguir para a construção da petition letter."}
+      </div>
+
+      {alertData && alertData.alert_level === "alerta_vermelho" && (
+        <div className="alert-box red" style={{marginTop:12}}>
+          <div className="alert-title">⚠ Atenção ao I-485</div>
+          Faltam <span className="countdown">{alertData.days_remaining_to_90}</span> dias para você atingir a marca de 90 dias desde a entrada. Considere aguardar antes de aplicar o I-485.
+        </div>
+      )}
+
+      <button className="btn btn-ghost" style={{marginTop:20}} onClick={onRestart}>Ver triagem novamente</button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
